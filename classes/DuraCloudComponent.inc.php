@@ -35,18 +35,6 @@ class DuraCloudComponent {
 	function getPrefix() {
 		return "/$this->componentName/";
 	}
-
-	function &_createXmlParser() {
-		$parser = xml_parser_create(DURACLOUD_XML_ENCODING);
-		if ($parser) {
-			xml_parser_set_option($parser, XML_OPTION_CASE_FOLDING, 0);
-		}
-		return $parser;
-	}
-
-	function _closeXmlParser(&$parser) {
-		xml_parser_free($parser);
-	}
 }
 
 ?>

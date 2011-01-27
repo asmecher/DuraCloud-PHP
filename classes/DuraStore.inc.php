@@ -25,6 +25,40 @@ class DuraStore extends DuraCloudComponent {
 	 * Get a list of stores.
 	 * @return array List of store IDs
 	 */
+	function getStores() {
+		// Get the stores list
+		$dcc =& $this->getConnection();
+		$xml = $dcc->get($this->getPrefix() . 'stores');
+		if (!$xml) return false;
+
+		// Parse the result
+		$parser = new DuraCloudXMLParser();
+		if (!$parser->parse($xml)) return false;
+
+		$returner = array();
+		$storageProviderAccounts =& $parser->getResults();
+		assert($storageProviderAccounts['name'] === 'storageProviderAccounts');
+		foreach ((array) $storageProviderAccounts['children'] as $i => $storageAcct) {
+			assert($storageAcct['name'] === 'storageAcct');
+			foreach ($storageAcct['children'] as $c) {
+				assert(in_array($c['name'], array('id', 'storageProviderType')));
+				if (!isset($returner[$i])) {
+					$returner[$i] = array(
+						'primary' => $storageAcct['attributes']['isPrimary'] == 'true'?true:false
+					);
+				}
+				$returner[$i][$c['name']] = $c['content'];
+			}
+		}
+
+		$parser->destroy();
+		return $returner;
+	}
+
+	/**
+	 * Get a list of spaces.
+	 * @return array List of space IDs
+	 */
 	function getSpaces() {
 		// Get the spaces list
 		$dcc =& $this->getConnection();
@@ -32,19 +66,20 @@ class DuraStore extends DuraCloudComponent {
 		if (!$xml) return false;
 
 		// Parse the result
-		$parser =& $this->_createXmlParser();
-		if (!$parser) return false;
+		$parser = new DuraCloudXMLParser();
+		if (!$parser->parse($xml)) return false;
 
-		xml_parse_into_struct($parser, $xml, $data, $index);
-		if (!isset($index['space'])) return array(); // Empty
-
-		$result = array();
-		foreach ($index['space'] as $i) {
-			$result[] = $data[$i]['attributes']['id'];
+		$returner = array();
+		$spaces =& $parser->getResults();
+		assert($spaces['name'] === 'spaces');
+		foreach ($spaces['children'] as $c) {
+			assert($c['name'] === 'space');
+			$returner[] = $c['attributes']['id'];
 		}
 
-		$this->_closeXmlParser($parser);
-		return $result;
+		$parser->destroy();
+
+		return $returner;
 	}
 }
 

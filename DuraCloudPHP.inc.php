@@ -19,6 +19,9 @@
 define('DURACLOUD_PHP_VERSION', '0.1');
 define('DURACLOUD_XML_ENCODING', 'UTF-8');
 
+// Utility classes
+require_once('classes/DuraCloudXMLParser.inc.php');
+
 // Connection class
 require_once('classes/DuraCloudConnection.inc.php');
 
