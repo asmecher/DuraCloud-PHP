@@ -1,12 +1,12 @@
 <?php
 
 /**
- * @file listspaces.php
+ * @file listspacemetadata.php
  *
  * Copyright (c) 2011 John Willinsky
  * Distributed under the GNU GPL v2. For full terms see the file docs/COPYING.
  *
- * @brief Connect to a DuraCloud server and get a list of spaces.
+ * @brief Connect to a DuraCloud server and get a list of a space's metadata.
  */
 
 // Configure error display to maximum level
@@ -21,9 +21,9 @@ if (!isset($argv)) {
 	exit(-1);
 }
 
-if (count($argv) < 4 || count($argv) > 5) {
+if (count($argv) < 5 || count($argv) > 9) {
 	echo "Usage:\n";
-	echo array_shift($argv) . " [DuraCloud base URL] [username] [password] [(storeID)]\n";
+	echo array_shift($argv) . " [DuraCloud base URL] [username] [password] [spaceID] [(storeID)]\n";
 	exit(-2);
 }
 
@@ -32,21 +32,22 @@ $exampleName = array_shift($argv);
 $baseUrl = array_shift($argv);
 $username = array_shift($argv);
 $password = array_shift($argv);
+$spaceId = array_shift($argv);
 $storeId = array_shift($argv); // Optional
 
 // Try a connection.
 $dcc = new DuraCloudConnection($baseUrl, $username, $password);
 $ds = new DuraStore($dcc);
-$spaces = $ds->getSpaces($storeId);
+$metadata = $ds->getSpaceMetadata($spaceId, $storeId);
 
-if ($spaces !== false) {
-	echo "The list of spaces is:\n";
-	foreach ($spaces as $space) {
-		echo " - $space\n";
+if ($metadata !== false) {
+	echo "\nMetadata:\n";
+	foreach ($metadata as $key => $value) {
+		echo " $key: $value\n";
 	}
 	echo "\n";
 } else {
-	echo "The list of spaces could not be fetched. Check your credentials.\n";
+	echo "The list of space metadata could not be fetched. Check your credentials and space ID.\n";
 	exit(-3);
 }
 

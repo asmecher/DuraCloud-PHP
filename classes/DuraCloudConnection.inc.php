@@ -26,6 +26,12 @@ class DuraCloudConnection {
 	/** @var $password string */
 	var $password;
 
+	/** @var $headers string */
+	var $headers;
+
+	/** @var $data string */
+	var $data;
+
 	/**
 	 * Construct a new DuraCloudConnection.
 	 * @param $baseUrl Base URL to DuraCloud, i.e. https://pkp.duracloud.org
@@ -49,6 +55,34 @@ class DuraCloudConnection {
 		$result = $this->_curlGet($ch, $this->baseUrl . '/' . $path, $params);
 		$this->_curlCloseHandle($ch);
 		return $result;
+	}
+
+	/**
+	 * Return the data resulting from the last successful operation
+	 * @return string
+	 */
+	function getData() {
+		return $this->data;
+	}
+
+	/**
+	 * Return the headers resulting from the last successful operation
+	 * @return array
+	 */
+	function getHeaders() {
+		// First, split the header chunk into lines
+		$lines = explode("\r\n", $this->headers);
+
+		// Remove the response line and treat it specially
+		$response = array_shift($lines);
+		$returner = array('response' => $response);
+
+		// For the rest of the lines, split into associative array
+		foreach ($lines as $line) {
+			$i = strpos($line, ':');
+			$returner[trim(substr($line, 0, $i))] = trim(substr($line, $i+2));
+		}
+		return $returner;
 	}
 
 	//
@@ -84,6 +118,7 @@ class DuraCloudConnection {
 			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 			curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+			curl_setopt($ch, CURLOPT_HEADER, 1);
 			curl_setopt($ch, CURLOPT_USERAGENT, "DuraCloud-PHP " . DURACLOUD_PHP_VERSION); 
 			curl_setopt($ch, CURLOPT_SSLVERSION, 3);
 			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
@@ -114,7 +149,8 @@ class DuraCloudConnection {
 		// Assemble POST data into $postData
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $postVars);
 
-		return curl_exec($ch);
+		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
+		return $this->data;
 	}
 
 	/**
@@ -131,9 +167,19 @@ class DuraCloudConnection {
 			$getString .= urlencode($name) . '=' . urlencode($value);
 		}
 		if (!empty($getString)) $getString = '?' . $getString;
+		curl_setopt($ch, CURLOPT_URL, $url . $getString);
+		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
+		return $this->data;
+	}
 
-		curl_setopt($ch, CURLOPT_URL, $url);
-		return curl_exec($ch);
+	function _separateHeadersFromData($response) {
+		$separator = "\r\n\r\n";
+		$i = strpos($response, $separator);
+		if (!$i) return $response; // If no separator was found, it's all data
+		return array(
+			substr($response, 0, $i),
+			substr($response, $i+strlen($separator))
+		);
 	}
 }
 

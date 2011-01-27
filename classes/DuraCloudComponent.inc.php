@@ -33,7 +33,7 @@ class DuraCloudComponent {
 	}
 
 	function getPrefix() {
-		return "/$this->componentName/";
+		return "$this->componentName/";
 	}
 }
 
