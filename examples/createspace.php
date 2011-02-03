@@ -38,7 +38,11 @@ $storeId = array_shift($argv); // Optional
 // Try a connection.
 $dcc = new DuraCloudConnection($baseUrl, $username, $password);
 $ds = new DuraStore($dcc);
-$location = $ds->createSpace($spaceId, $storeId, array(DURACLOUD_SPACE_ACCESS => DURACLOUD_SPACE_ACCESS_OPEN));
+$location = $ds->createSpace(
+	$spaceId,
+	array(DURACLOUD_SPACE_ACCESS => DURACLOUD_SPACE_ACCESS_OPEN),
+	$storeId
+);
 
 if ($location !== false) {
 	echo "\nThe new space was created as \"$location\".\n";

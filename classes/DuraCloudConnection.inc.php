@@ -85,13 +85,14 @@ class DuraCloudConnection {
 	 * @param $path string
 	 * @param $params array Associative array of POST parameters
 	 */
-	function post($path, $params = array()) {
+	function post($path, $params = array(), $headers = array()) {
 		$ch =& $this->_curlOpenHandle($this->username, $this->password);
 		if (!$ch) return false;
 
 		curl_setopt($ch, CURLOPT_POST, 1);
 		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+		if (!empty($headers)) curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_makeHeaderList($headers));
 
 		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
 
@@ -111,12 +112,7 @@ class DuraCloudConnection {
 
 		curl_setopt($ch, CURLOPT_PUT, 1);
 		curl_setopt($ch, CURLOPT_INFILESIZE, $size);
-
-		$headerList = array();
-		foreach ($headers as $name => $value) {
-			$headerList[] = "$name: $value";
-		}
-		curl_setopt($ch, CURLOPT_HTTPHEADER, $headerList);
+		if (!empty($headers)) curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_makeHeaderList($headers));
 
 		if ($fp) curl_setopt($ch, CURLOPT_INFILE, $fp);
 		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
@@ -125,6 +121,25 @@ class DuraCloudConnection {
 
 		curl_close($ch);
 		return $this->getHeaders();
+	}
+
+	/**
+	 * Execute a DELETE request to DuraCloud. Not for external use.
+	 * @param $path string
+	 * @param $params array Associative array of URL parameters
+	 * @param $headers array Associative array of HTTP headers
+	 */
+	function delete($path, $params = array()) {
+		$ch =& $this->_curlOpenHandle($this->username, $this->password);
+		if (!$ch) return false;
+
+		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
+
+		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
+
+		curl_close($ch);
+		return $this->data;
 	}
 
 	/**
@@ -225,6 +240,19 @@ class DuraCloudConnection {
 		}
 		if ($returner !== '') $returner = '?' . $returner;
 		return $returner;
+	}
+
+	/**
+	 * Turn an associative array of headers into a list as CURLOPT_HTTPHEADER expects.
+	 * @param $headers array
+	 * @return array
+	 */
+	function _makeHeaderList($headers) {
+		$headerList = array();
+		foreach ($headers as $name => $value) {
+			$headerList[] = "$name: $value";
+		}
+		return $headerList;
 	}
 }
 

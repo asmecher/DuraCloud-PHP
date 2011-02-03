@@ -172,32 +172,69 @@ class DuraStore extends DuraCloudComponent {
 	/**
 	 * Create a space.
 	 * @param $spaceId string
-	 * @param $storeId int optional
 	 * @param metadata array optional
+	 * @param $storeId int optional
 	 * @return Location of the new space iff success; false otherwise
 	 */
-	function createSpace($spaceId, $storeId = DURACLOUD_DEFAULT_STORE, $metadata = array()) {
+	function createSpace($spaceId, $metadata = array(), $storeId = DURACLOUD_DEFAULT_STORE) {
 		// Create a new space
 		$dcc =& $this->getConnection();
 		$params = array();
 		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
 
-		$headers = array();
-		foreach ($metadata as $name => $value) {
-			$headers[DURACLOUD_METADATA_PREFIX . $name] = $value;
-		}
-
 		if (!$dcc->put(
 			$this->getPrefix() . urlencode($spaceId),
 			null, 0, // No file
 			$params,
-			$headers
+			$this->_addMetadataPrefix($metadata)
 		)) return false;
 		$headers = $dcc->getHeaders();
 
 		if (isset($headers['Location'])) return $headers['Location'];
 
 		return false;
+	}
+
+	/**
+	 * Set a space's metadata.
+	 * @param $spaceId string
+	 * @param metadata array optional
+	 * @param $storeId int optional
+	 * @return Location of the new space iff success; false otherwise
+	 */
+	function setSpaceMetadata($spaceId, $metadata, $storeId = DURACLOUD_DEFAULT_STORE) {
+		// Create a new space
+		$dcc =& $this->getConnection();
+		$params = array();
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+
+		$data = $dcc->post(
+			$this->getPrefix() . urlencode($spaceId),
+			$params,
+			$this->_addMetadataPrefix($metadata)
+		);
+
+		return ($data == "Space $spaceId updated successfully");
+	}
+
+	/**
+	 * Delete a space.
+	 * @param $spaceId string
+	 * @param $storeId int optional
+	 * @return boolean success
+	 */
+	function deleteSpace($spaceId, $storeId = DURACLOUD_DEFAULT_STORE) {
+		// Create a new space
+		$dcc =& $this->getConnection();
+		$params = array();
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+
+		$data = $dcc->delete(
+			$this->getPrefix() . urlencode($spaceId),
+			$params
+		);
+
+		return ($data == "Space $spaceId deleted successfully");
 	}
 
 	//
@@ -219,6 +256,20 @@ class DuraStore extends DuraCloudComponent {
 		}
 
 		return $metadata;
+	}
+
+	/**
+	 * Used internally by createSpace and setSpaceMetadata to add the DuraCloud metadata
+	 * prefix to a set of metadata, returning the result.
+	 * @param $metadata array
+	 * @return array
+	 */
+	function _addMetadataPrefix($metadata) {
+		$headers = array();
+		foreach ($metadata as $name => $value) {
+			$headers[DURACLOUD_METADATA_PREFIX . $name] = $value;
+		}
+		return $headers;
 	}
 }
 
