@@ -12,6 +12,21 @@
  * @brief DuraStore client implementation
  */
 
+//
+// DuraStore standard metadata element names
+//
+define('DURACLOUD_SPACE_ACCESS', 'space-access');
+define('DURACLOUD_SPACE_ACCESS_OPEN', 'OPEN');
+define('DURACLOUD_SPACE_ACCESS_CLOSED', 'CLOSED');
+define('DURACLOUD_SPACE_COUNT', 'space-count');
+define('DURACLOUD_SPACE_CREATED', 'space-created');
+
+// Default store
+define('DURACLOUD_DEFAULT_STORE', null);
+
+// DuraCloud metadata prefix
+define('DURACLOUD_METADATA_PREFIX', 'x-dura-meta-');
+
 class DuraStore extends DuraCloudComponent {
 	/**
 	 * Constructor
@@ -60,12 +75,12 @@ class DuraStore extends DuraCloudComponent {
 	 * @param $storeId int optional ID of store
 	 * @return array List of space IDs
 	 */
-	function getSpaces($storeId = null) {
+	function getSpaces($storeId = DURACLOUD_DEFAULT_STORE) {
 		// Get the spaces list
 		$dcc =& $this->getConnection();
 		$xml = $dcc->get(
 			$this->getPrefix() . 'spaces',
-			$storeId !== null ? array('storeID' => $storeId) : array()
+			$storeId !== DURACLOUD_DEFAULT_STORE ? array('storeID' => $storeId) : array()
 		);
 
 		if (!$xml) return false;
@@ -96,11 +111,11 @@ class DuraStore extends DuraCloudComponent {
 	 * @param $marker string optional
 	 * @return array List of space IDs
 	 */
-	function getSpace($spaceId, &$metadata, $storeId = null, $prefix = null, $maxResults = null, $marker = null) {
+	function getSpace($spaceId, &$metadata, $storeId = DURACLOUD_DEFAULT_STORE, $prefix = null, $maxResults = null, $marker = null) {
 		// Get the space contents list
 		$dcc =& $this->getConnection();
 		$params = array();
-		if ($storeId !== null) $params['storeId'] = $storeId;
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
 		if ($prefix !== null) $params['prefix'] = $prefix;
 		if ($maxResults !== null) $params['maxResults'] = (int) $maxResults;
 		if ($marker !== null) $params['marker'] = $marker;
@@ -133,20 +148,16 @@ class DuraStore extends DuraCloudComponent {
 
 	/**
 	 * Get a list of a space's metadata.
+	 * @param $spaceId string
 	 * @param $storeId int optional ID of store
-	 * @param $metadata Reference to variable that will receive metadata
-	 * @param $storeId int optional
-	 * @param $prefix string optional
-	 * @param $maxResults int optional
-	 * @param $marker string optional
-	 * @return array List of space IDs
+	 * @return array List of space metadata
 	 */
-	function getSpaceMetadata($spaceId, $storeId = null) {
-		// Get the space contents list
+	function getSpaceMetadata($spaceId, $storeId = DURACLOUD_DEFAULT_STORE) {
+		// Get the space metadata list
 		$dcc =& $this->getConnection();
 		$params = array();
-		if ($storeId !== null) $params['storeId'] = $storeId;
-		if (!$dcc->get(
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+		if (!$dcc->head(
 			$this->getPrefix() . urlencode($spaceId),
 			$params
 		)) return false;
@@ -158,12 +169,52 @@ class DuraStore extends DuraCloudComponent {
 		return $metadata;
 	}
 
+	/**
+	 * Create a space.
+	 * @param $spaceId string
+	 * @param $storeId int optional
+	 * @param metadata array optional
+	 * @return Location of the new space iff success; false otherwise
+	 */
+	function createSpace($spaceId, $storeId = DURACLOUD_DEFAULT_STORE, $metadata = array()) {
+		// Create a new space
+		$dcc =& $this->getConnection();
+		$params = array();
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+
+		$headers = array();
+		foreach ($metadata as $name => $value) {
+			$headers[DURACLOUD_METADATA_PREFIX . $name] = $value;
+		}
+
+		if (!$dcc->put(
+			$this->getPrefix() . urlencode($spaceId),
+			null, 0, // No file
+			$params,
+			$headers
+		)) return false;
+		$headers = $dcc->getHeaders();
+
+		if (isset($headers['Location'])) return $headers['Location'];
+
+		return false;
+	}
+
+	//
+	// For internal use only
+	//
+
+	/**
+	 * Used internally by getSpace and getSpaceMetadata to filter extaneous HTTP headers
+	 * out of the metadata set and return only the DuraCloud-specific content.
+	 * @param $headers array
+	 * @return array
+	 */
 	function _filterMetadata($headers) {
-		$prefix = 'x-dura-meta';
 		$metadata = array();
 		foreach ($headers as $key => $value) {
-			if (strpos($key, $prefix) === 0) {
-				$metadata[substr($key, strlen($prefix)+1)] = $value;
+			if (strpos($key, DURACLOUD_METADATA_PREFIX) === 0) {
+				$metadata[substr($key, strlen(DURACLOUD_METADATA_PREFIX))] = $value;
 			}
 		}
 

@@ -46,15 +46,85 @@ class DuraCloudConnection {
 
 	/**
 	 * Execute a GET request to DuraCloud. Not for external use.
+	 * @param $path string
+	 * @param $params array
+	 * @return string data
 	 */
 	function get($path, $params = array()) {
-		// Fetch the result
 		$ch =& $this->_curlOpenHandle($this->username, $this->password);
 		if (!$ch) return false;
 
-		$result = $this->_curlGet($ch, $this->baseUrl . '/' . $path, $params);
-		$this->_curlCloseHandle($ch);
-		return $result;
+		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
+		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
+
+		curl_close($ch);
+		return $this->data;
+	}
+
+	/**
+	 * Execute a HEAD request to DuraCloud. Not for external use.
+	 * @param $path string
+	 * @param $params array
+	 * @return array headers
+	 */
+	function head($path, $params = array()) {
+		$ch =& $this->_curlOpenHandle($this->username, $this->password);
+		if (!$ch) return false;
+
+		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
+		curl_setopt($ch, CURLOPT_NOBODY, 1);
+
+		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
+
+		curl_close($ch);
+		return $this->getHeaders();
+	}
+
+	/**
+	 * Execute a POST request to DuraCloud. Not for external use.
+	 * @param $path string
+	 * @param $params array Associative array of POST parameters
+	 */
+	function post($path, $params = array()) {
+		$ch =& $this->_curlOpenHandle($this->username, $this->password);
+		if (!$ch) return false;
+
+		curl_setopt($ch, CURLOPT_POST, 1);
+		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+
+		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
+
+		curl_close($ch);
+		return $this->data;
+	}
+
+	/**
+	 * Execute a PUT request to DuraCloud. Not for external use.
+	 * @param $path string
+	 * @param $params array Associative array of URL parameters
+	 * @param $headers array Associative array of HTTP headers
+	 */
+	function put($path, $fp = null, $size = 0, $params = array(), $headers = array()) {
+		$ch =& $this->_curlOpenHandle($this->username, $this->password);
+		if (!$ch) return false;
+
+		curl_setopt($ch, CURLOPT_PUT, 1);
+		curl_setopt($ch, CURLOPT_INFILESIZE, $size);
+
+		$headerList = array();
+		foreach ($headers as $name => $value) {
+			$headerList[] = "$name: $value";
+		}
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $headerList);
+
+		if ($fp) curl_setopt($ch, CURLOPT_INFILE, $fp);
+		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
+
+		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
+
+		curl_close($ch);
+		return $this->getHeaders();
 	}
 
 	/**
@@ -119,7 +189,7 @@ class DuraCloudConnection {
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 			curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 			curl_setopt($ch, CURLOPT_HEADER, 1);
-			curl_setopt($ch, CURLOPT_USERAGENT, "DuraCloud-PHP " . DURACLOUD_PHP_VERSION); 
+			curl_setopt($ch, CURLOPT_USERAGENT, 'DuraCloud-PHP ' . DURACLOUD_PHP_VERSION); 
 			curl_setopt($ch, CURLOPT_SSLVERSION, 3);
 			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
 			curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
@@ -128,50 +198,10 @@ class DuraCloudConnection {
 	}
 
 	/**
-	 * Close a cURL handle created with _curlOpenHandle. Not for external
-	 * use.
-	 * @param $ch object
+	 * Used internally to take a response and split it into headers and response data.
+	 * @param $response string
+	 * @return array (headers, data) iff both headers and data were found; otherwise string data
 	 */
-	function _curlCloseHandle($ch) {
-		curl_close($ch);
-	}
-
-	/**
-	 * Execute an HTTP POST. Not for external use.
-	 * @param $ch cURL handle from openCurlHandle
-	 * @param $url URL to DuraCloud (must not contain URL parameters)
-	 * @param $postVars array Associative array of POST parameters
-	 */
-	function _curlPost($ch, $url, $postVars = array()) {
-		curl_setopt($ch, CURLOPT_POST, 1);
-		curl_setopt($ch, CURLOPT_URL, $url);
-
-		// Assemble POST data into $postData
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $postVars);
-
-		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
-		return $this->data;
-	}
-
-	/**
-	 * Execute an HTTP GET. Not for external use.
-	 * @param $ch cURL handle from openCurlHandle
-	 * @param $url URL to DuraCloud (must not contain URL parameters)
-	 * @param $getVars array Associative array of GET parameters
-	 */
-	function _curlGet($ch, $url, $getVars = array()) {
-		// Assemble "get" variables into a string
-		$getString = '';
-		foreach ($getVars as $name => $value) {
-			if (!empty($getString)) $getString .= '&';
-			$getString .= urlencode($name) . '=' . urlencode($value);
-		}
-		if (!empty($getString)) $getString = '?' . $getString;
-		curl_setopt($ch, CURLOPT_URL, $url . $getString);
-		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
-		return $this->data;
-	}
-
 	function _separateHeadersFromData($response) {
 		$separator = "\r\n\r\n";
 		$i = strpos($response, $separator);
@@ -180,6 +210,21 @@ class DuraCloudConnection {
 			substr($response, 0, $i),
 			substr($response, $i+strlen($separator))
 		);
+	}
+
+	/**
+	 * Used internally to build a portion of a URL describing variables (from the '?' onwards).
+	 * @param $array
+	 * @return string
+	 */
+	function _buildUrlVars($urlVars) {
+		$returner = '';
+		foreach ($urlVars as $name => $value) {
+			if (!empty($returner)) $returner .= '&';
+			$returner .= urlencode($name) . '=' . urlencode($value);
+		}
+		if ($returner !== '') $returner = '?' . $returner;
+		return $returner;
 	}
 }
 
