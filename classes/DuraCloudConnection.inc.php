@@ -32,6 +32,12 @@ class DuraCloudConnection {
 	/** @var $data string */
 	var $data;
 
+	/** @var $inHeader boolean Used internally by getFile */
+	var $inHeader;
+
+	/** @var $fp resource Used internally by getFile */
+	var $fp;
+
 	/**
 	 * Construct a new DuraCloudConnection.
 	 * @param $baseUrl Base URL to DuraCloud, i.e. https://pkp.duracloud.org
@@ -54,11 +60,40 @@ class DuraCloudConnection {
 		$ch =& $this->_curlOpenHandle($this->username, $this->password);
 		if (!$ch) return false;
 
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
 		list($this->headers, $this->data) = $this->_separateHeadersFromData(curl_exec($ch));
 
 		curl_close($ch);
 		return $this->data;
+	}
+
+	/**
+	 * Execute a GET request to DuraCloud, returning output in a file. Not for external use.
+	 * @param $path string
+	 * @param $params array
+	 * @return false on failure, file size on success
+	 */
+	function getFile($path, &$fp, $params = array()) {
+		$ch =& $this->_curlOpenHandle($this->username, $this->password);
+		if (!$ch) return false;
+
+		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
+		$this->fp =& $fp;
+		$this->headers = '';
+		$this->inHeader = true;
+		curl_setopt($ch, CURLOPT_WRITEFUNCTION, array(&$this, '_addData'));
+		$result = curl_exec($ch);
+		if (!$result) {
+			curl_close($ch);
+			return false; // Failure
+		}
+		unset($this->fp);
+		$result = curl_getinfo($ch, CURLINFO_SIZE_DOWNLOAD);
+		curl_close($ch);
+		$this->data = null;
+
+		return $result;
 	}
 
 	/**
@@ -71,6 +106,7 @@ class DuraCloudConnection {
 		$ch =& $this->_curlOpenHandle($this->username, $this->password);
 		if (!$ch) return false;
 
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
 		curl_setopt($ch, CURLOPT_NOBODY, 1);
 
@@ -89,6 +125,7 @@ class DuraCloudConnection {
 		$ch =& $this->_curlOpenHandle($this->username, $this->password);
 		if (!$ch) return false;
 
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($ch, CURLOPT_POST, 1);
 		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
@@ -110,8 +147,13 @@ class DuraCloudConnection {
 		$ch =& $this->_curlOpenHandle($this->username, $this->password);
 		if (!$ch) return false;
 
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($ch, CURLOPT_PUT, 1);
 		curl_setopt($ch, CURLOPT_INFILESIZE, $size);
+
+		// Force an empty Expect header; see
+		// http://the-stickman.com/web-development/php-and-curl-disabling-100-continue-header/
+		$headers['Expect'] = '';
 		if (!empty($headers)) curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_makeHeaderList($headers));
 
 		if ($fp) curl_setopt($ch, CURLOPT_INFILE, $fp);
@@ -133,6 +175,7 @@ class DuraCloudConnection {
 		$ch =& $this->_curlOpenHandle($this->username, $this->password);
 		if (!$ch) return false;
 
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
 		curl_setopt($ch, CURLOPT_URL, $this->baseUrl . '/' . $path . $this->_buildUrlVars($params));
 
@@ -201,7 +244,6 @@ class DuraCloudConnection {
 			curl_setopt($ch, CURLOPT_USERPWD, "$username:$password");
 			curl_setopt($ch, CURLOPT_FAILONERROR, 1);
 			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 			curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 			curl_setopt($ch, CURLOPT_HEADER, 1);
 			curl_setopt($ch, CURLOPT_USERAGENT, 'DuraCloud-PHP ' . DURACLOUD_PHP_VERSION); 
@@ -253,6 +295,21 @@ class DuraCloudConnection {
 			$headerList[] = "$name: $value";
 		}
 		return $headerList;
+	}
+
+	/**
+	 * Used in getFile to read data from the server, toggling from headers to data
+	 */
+	function _addData($ch, $data) {
+		if (!$this->inHeader) return fwrite($this->fp, $data);
+
+		// We're still in the headers; append to current data set
+		if ($data === "\r\n") {
+			$this->inHeader = false;
+		} else {
+			$this->headers .= $data;
+		}
+		return strlen($data);
 	}
 }
 

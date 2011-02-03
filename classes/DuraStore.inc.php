@@ -36,6 +36,11 @@ class DuraStore extends DuraCloudComponent {
 		parent::DuraCloudComponent($dcc, 'durastore');
 	}
 
+
+	//
+	// Store management
+	//
+
 	/**
 	 * Get a list of stores.
 	 * @return array List of store IDs
@@ -69,6 +74,11 @@ class DuraStore extends DuraCloudComponent {
 		$parser->destroy();
 		return $returner;
 	}
+
+
+	//
+	// Space management
+	//
 
 	/**
 	 * Get a list of spaces.
@@ -236,6 +246,149 @@ class DuraStore extends DuraCloudComponent {
 
 		return ($data == "Space $spaceId deleted successfully");
 	}
+
+
+	//
+	// Content management
+	//
+
+	/**
+	 * Store content.
+	 * @param $spaceId string
+	 * @param $contentId string
+	 * @param $content object DuraCloudContent
+	 * @param $storeId int optional
+	 * @return Location of the new space iff success; false otherwise
+	 */
+	function storeContent($spaceId, $contentId, $content, $storeId = DURACLOUD_DEFAULT_STORE) {
+		$dcc =& $this->getConnection();
+		$params = array();
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+
+		$descriptor =& $content->getDescriptor();
+
+		$headers = $this->_addMetadataPrefix($descriptor->getMetadata());
+		$headers['Content-Type'] = $descriptor->getContentType();
+		if (($md5 = $descriptor->getMD5()) != '') $headers['Content-MD5'] = $md5;
+
+		if (!$dcc->put(
+			$this->getPrefix() . urlencode($spaceId) . '/' . urlencode($contentId),
+			$content->getResource(), $content->getSize(),
+			$params,
+			$headers
+		)) return false;
+		$headers = $dcc->getHeaders();
+
+		if (isset($headers['Location'])) return $headers['Location'];
+
+		return false;
+	}
+
+	/**
+	 * Get content.
+	 * @param $spaceId string
+	 * @param $contentId string
+	 * @param $storeId int optional ID of store
+	 * @return object DuraCloudContent
+	 */
+	function &getContent($spaceId, $contentId, $storeId = DURACLOUD_DEFAULT_STORE) {
+		// Prepare descriptor and content
+		$descriptor = new DuraCloudContentDescriptor();
+		$content = new DuraCloudFileContent($descriptor);
+		$fp = tmpfile();
+		$content->setResource($fp);
+
+		$dcc =& $this->getConnection();
+		$params = array();
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+		if (!$dcc->getFile(
+			$this->getPrefix() . urlencode($spaceId) . '/' . urlencode($contentId),
+			$fp,
+			$params
+		)) return false;
+		$headers = $dcc->getHeaders();
+		if (isset($headers['Content-Type'])) $descriptor->setContentType($headers['Content-Type']);
+		if (isset($headers['Content-MD5'])) $descriptor->setMD5($headers['Content-MD5']);
+
+		// Parse the result headers to return as metadata
+		$descriptor->setMetadata($this->_filterMetadata($headers));
+
+		return $content;
+	}
+
+	/**
+	 * Get content metadata.
+	 * @param $spaceId string
+	 * @param $contentId string
+	 * @param $storeId int optional ID of store
+	 * @return mixed false iff failure; DuraCloudContentDescriptor otherwise
+	 */
+	function getContentMetadata($spaceId, $contentId, $storeId = DURACLOUD_DEFAULT_STORE) {
+		$dcc =& $this->getConnection();
+		$params = array();
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+		if (!$dcc->head(
+			$this->getPrefix() . urlencode($spaceId) . '/' . urlencode($contentId),
+			$params
+		)) return false;
+		$headers = $dcc->getHeaders();
+
+		// Parse the result headers to return as metadata
+		$descriptor = new DuraCloudContentDescriptor($this->_filterMetadata($headers));
+		if (isset($headers['Content-MD5'])) $descriptor->setMD5($headers['Content-MD5']);
+		if (isset($headers['Content-Type'])) $descriptor->setContentType($headers['Content-Type']);
+
+		return $descriptor;
+	}
+
+	/**
+	 * Set content metadata.
+	 * @param $spaceId string
+	 * @param $contentId string
+	 * @param $contentType string MIME type
+	 * @param $md5 string MD5 sum for content
+	 * @param metadata array optional
+	 * @param $storeId int optional
+	 * @return Location of the new space iff success; false otherwise
+	 */
+	function setContentMetadata($spaceId, $contentId, $descriptor, $storeId = DURACLOUD_DEFAULT_STORE) {
+		$dcc =& $this->getConnection();
+		$params = array();
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+
+		$headers = $this->_addMetadataPrefix($descriptor->getMetadata());
+		if (($contentType = $descriptor->getContentType()) != '') $headers['Content-Type'] = $contentType;
+		if (($md5 = $descriptor->getMD5()) != '') $headers['Content-MD5'] = $md5;
+
+		$data = $dcc->post(
+			$this->getPrefix() . urlencode($spaceId) . '/' . urlencode($contentId),
+			$params,
+			$headers
+		);
+
+		return ($data == "Content $contentId updated successfully");
+	}
+
+	/**
+	 * Delete content.
+	 * @param $spaceId string
+	 * @param $contentId string
+	 * @param $storeId int optional
+	 * @return boolean success
+	 */
+	function deleteContent($spaceId, $contentId, $storeId = DURACLOUD_DEFAULT_STORE) {
+		$dcc =& $this->getConnection();
+		$params = array();
+		if ($storeId !== DURACLOUD_DEFAULT_STORE) $params['storeId'] = $storeId;
+
+		$data = $dcc->delete(
+			$this->getPrefix() . urlencode($spaceId) . '/' . urlencode($contentId),
+			$params
+		);
+
+		return ($data == "Content $contentId deleted successfully");
+	}
+
 
 	//
 	// For internal use only

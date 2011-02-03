@@ -25,6 +25,12 @@ require_once('classes/DuraCloudXMLParser.inc.php');
 // Connection class
 require_once('classes/DuraCloudConnection.inc.php');
 
+// Content model
+require_once('classes/DuraCloudContentDescriptor.inc.php');
+require_once('classes/DuraCloudContent.inc.php');
+require_once('classes/DuraCloudFileContent.inc.php');
+require_once('classes/DuraCloudStreamContent.inc.php');
+
 // API implementations
 require_once('classes/DuraCloudComponent.inc.php');
 require_once('classes/DuraStore.inc.php');
