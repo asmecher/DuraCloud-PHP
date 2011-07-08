@@ -305,7 +305,10 @@ class DuraStore extends DuraCloudComponent {
 			$this->getPrefix() . urlencode($spaceId) . '/' . urlencode($contentId),
 			$fp,
 			$params
-		)) return false;
+		)) {
+			$returner = false; // Return by ref kludge
+			return $returner;
+		}
 		$headers = $dcc->getHeaders();
 		if (isset($headers['Content-Type'])) $descriptor->setContentType($headers['Content-Type']);
 		if (isset($headers['Content-MD5'])) $descriptor->setMD5($headers['Content-MD5']);
